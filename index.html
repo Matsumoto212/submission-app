@@ -272,9 +272,6 @@
     </div>
 
     <script>
-        // --- 簡易版：既存のJavaScript関数を上書き・追加するスクリプト ---
-        // ※実際には前回の<script>タグ全体を含みますが、ここでは変更・追加された重要部分のみ抽出しています。
-
         const TEACHER_PIN = "t222701Matsumoto";
         const CATEGORIES = {
             '生活ノート': { color: 'bg-green-100 text-green-700 border-green-200', icon: 'fa-book-open' },
@@ -292,226 +289,64 @@
         window.addEventListener('DOMContentLoaded', () => {
             loadFromStorage();
             if(appState.gasUrl) {
-                // 起動時に自動でクラウド（スプレッドシート）からデータを読み込む
                 fetchFromSpreadsheet();
             }
             switchView(appState.currentView, true);
         });
 
-        // ==========================================
-        // 新機能：クラウド（スプレッドシート）から受信する機能
-        // ==========================================
-        async function fetchFromSpreadsheet() {
-            if (!appState.gasUrl) return;
-
-            const icon = document.getElementById('sync-icon');
-            if (icon) icon.classList.add('sync-spin');
-            
-            try {
-                // GETリクエストでスプレッドシートのデータを取得
-                const response = await fetch(appState.gasUrl);
-                const result = await response.json();
-                
-                if (result.status === 'success' && result.data) {
-                    // スプレッドシート側のデータでローカルを上書きする
-                    appState.tasks = result.data.tasks || [];
-                    appState.members = result.data.members || [];
-                    appState.submissions = result.data.submissions || {};
-                    saveToStorage();
-                    render();
-                    showToast('クラウドから最新データを同期しました');
-                } else {
-                    showToast('同期データの形式が不正です', 'error');
-                }
-            } catch (err) {
-                console.error("Fetch failed:", err);
-                showToast('同期失敗: オフラインの可能性があります', 'error');
-            } finally {
-                if (icon) icon.classList.remove('sync-spin');
-            }
+        // Storage & State
+        function saveToStorage() { localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); }
+        function loadFromStorage() { 
+            const data = localStorage.getItem(STORAGE_KEY); 
+            if(data) appState = { ...appState, ...JSON.parse(data), teacherUnlocked: false }; 
         }
 
-        // ==========================================
-        // クラウドへ送信する機能 (既存の更新)
-        // ==========================================
-        async function syncToSpreadsheet(silent = false) {
-            if (!appState.gasUrl) return;
-            const categories = ['生活ノート', '家庭学習ノート', '書類', 'その他'];
-            const payload = { sheets: {} };
-
-            categories.forEach(cat => {
-                const catTasks = appState.tasks.filter(t => (t.category || 'その他') === cat);
-                const taskTitles = catTasks.map(t => t.title);
-                const headers = ["名前", ...taskTitles];
-                
-                const rows = appState.members.map(m => {
-                    const row = [m.name];
-                    catTasks.forEach(t => {
-                        const st = appState.submissions[`${t.id}_${m.id}`] || '未';
-                        row.push(st);
-                    });
-                    return row;
-                });
-                payload.sheets[cat] = { headers, rows };
+        // View Navigation
+        function switchView(viewName, noSave = false) {
+            appState.currentView = viewName;
+            if (!noSave) saveToStorage();
+            
+            ['student', 'checker', 'teacher'].forEach(name => {
+                document.getElementById('view-' + name).classList.add('hidden');
+                const tab = document.getElementById('tab-' + name);
+                if(tab) {
+                    tab.classList.remove('text-indigo-600', 'border-indigo-500', 'bg-indigo-50/50');
+                    tab.classList.add('text-slate-500', 'border-transparent');
+                }
             });
 
-            try {
-                // 送信時は常に POST を使用
-                await fetch(appState.gasUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
-                });
-                if (!silent) showToast('スプレッドシートにデータを保存しました');
-            } catch (err) {
-                if (!silent) showToast('保存に失敗しました', 'error');
+            document.getElementById('view-' + viewName).classList.remove('hidden');
+            const activeTab = document.getElementById('tab-' + viewName);
+            if(activeTab) {
+                activeTab.classList.add('text-indigo-600', 'border-indigo-500', 'bg-indigo-50/50');
+                activeTab.classList.remove('text-slate-500', 'border-transparent');
             }
-        }
 
-        function toggleSubmission(taskId, memberId) {
-            const key = `${taskId}_${memberId}`;
-            const currentStatus = appState.submissions[key] || '未';
-
-            if (currentStatus === '未') appState.submissions[key] = '済';
-            else if (currentStatus === '済') appState.submissions[key] = '休';
-            else appState.submissions[key] = '未';
-
-            saveToStorage();
             render();
-
-            // 変更するたびにクラウドに送信
-            if (appState.gasUrl) {
-                syncToSpreadsheet(true);
-            }
         }
 
-        // ==========================================
-        // GASコードのコピー（受信機能「doGet」を追加した新バージョン）
-        // ==========================================
-        function copyGasScript() {
-            const scriptCode = `// 【送信（書き込み）処理】
-function doPost(e) {
-  try {
-    var contents = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetsData = contents.sheets;
-    
-    for (var sheetName in sheetsData) {
-      var data = sheetsData[sheetName];
-      var headers = data.headers || [];
-      var rows = data.rows || [];
-      var sheet = ss.getSheetByName(sheetName);
-      if (!sheet) sheet = ss.insertSheet(sheetName);
-      sheet.clear();
-      
-      if (headers.length === 0 && rows.length === 0) continue;
-      
-      var outData = [];
-      if (headers.length > 0) outData.push(headers);
-      rows.forEach(function(r) { outData.push(r); });
-      
-      if (outData.length > 0) {
-        var maxCols = Math.max.apply(null, outData.map(function(r){ return r.length; }));
-        outData = outData.map(function(r) { while(r.length < maxCols) r.push(""); return r; });
-        sheet.getRange(1, 1, outData.length, maxCols).setValues(outData);
-      }
-      if (headers.length > 0) {
-        sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0e7ff").setHorizontalAlignment("center");
-      }
-      if (rows.length > 0 && headers.length > 1) {
-        var dataRange = sheet.getRange(2, 2, rows.length, headers.length - 1);
-        dataRange.setHorizontalAlignment("center");
-        var currentValues = dataRange.getValues();
-        var newColors = currentValues.map(function(row) {
-          return row.map(function(cell) {
-            if (cell === '未') return 'red';
-            if (cell === '休') return 'blue';
-            return 'black';
-          });
-        });
-        dataRange.setFontColors(newColors);
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error"})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-// 【受信（読み込み）処理】 - 今回追加された部分
-function doGet(e) {
-  try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheets = ss.getSheets();
-    var data = { tasks: [], members: [], submissions: {} };
-    var memberMap = {}; // 名前をキーにしてIDを管理
-    var memberCounter = 1;
-    var taskCounter = 1;
-
-    sheets.forEach(function(sheet) {
-      var sheetName = sheet.getName();
-      var values = sheet.getDataRange().getValues();
-      if (values.length < 1) return;
-
-      var headers = values[0];
-      var currentTasks = [];
-      
-      // タスク（列）のパース
-      for (var i = 1; i < headers.length; i++) {
-        var taskTitle = headers[i];
-        if (!taskTitle) continue;
-        var taskId = 'cloud-task-' + taskCounter++;
-        var taskObj = { id: taskId, title: taskTitle, category: sheetName };
-        data.tasks.push(taskObj);
-        currentTasks.push(taskObj);
-      }
-
-      // メンバーと提出状況（行）のパース
-      for (var r = 1; r < values.length; r++) {
-        var row = values[r];
-        var memberName = row[0];
-        if (!memberName) continue;
-
-        if (!memberMap[memberName]) {
-          memberMap[memberName] = 'cloud-mem-' + memberCounter++;
-          data.members.push({ id: memberMap[memberName], name: memberName });
-        }
-        var mId = memberMap[memberName];
-
-        for (var c = 1; c < headers.length; c++) {
-          if (c - 1 < currentTasks.length) {
-            var status = row[c] || '未';
-            var tId = currentTasks[c - 1].id;
-            if (status === '済' || status === '休' || status === '未') {
-              data.submissions[tId + '_' + mId] = status;
-            }
-          }
-        }
-      }
-    });
-
-    return ContentService.createTextOutput(JSON.stringify({status: "success", data: data})).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}`;
-            const textarea = document.createElement('textarea');
-            textarea.value = scriptCode;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            showToast('新しいGAS用スクリプトをコピーしました！');
+        function render() {
+            renderTasks();
+            renderMembers();
+            renderStudentSelect();
+            if(appState.currentView === 'student') renderStudentDashboard();
+            if(appState.currentView === 'checker') renderMatrixTable();
         }
 
-        // --- 以下、既存のUI制御関数などは省略せずそのまま利用します ---
-        function saveToStorage() { localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); }
-        function loadFromStorage() { const data = localStorage.getItem(STORAGE_KEY); if(data) appState = { ...appState, ...JSON.parse(data), teacherUnlocked: false }; }
-        function switchView(viewName, noSave=false) { appState.currentView = viewName; if(!noSave) saveToStorage(); document.getElementById('view-student').classList.add('hidden'); document.getElementById('view-checker').classList.add('hidden'); document.getElementById('view-teacher').classList.add('hidden'); document.getElementById('view-'+viewName).classList.remove('hidden'); render(); }
-        function render() { /* ...既存の描画ロジック... */ }
-        function showToast(msg, type='success') { const t = document.getElementById('toast'); document.getElementById('toast-message').innerText = msg; t.classList.remove('translate-y-20', 'opacity-0'); setTimeout(()=>t.classList.add('translate-y-20','opacity-0'), 2500); }
-        function openModal(id) { document.getElementById('modal-backdrop').classList.remove('hidden', 'opacity-0'); document.getElementById(id).classList.remove('hidden', 'scale-95'); }
+        // UI Utils
+        function showToast(msg, type='success') { 
+            const t = document.getElementById('toast'); 
+            document.getElementById('toast-message').innerText = msg; 
+            t.classList.remove('translate-y-20', 'opacity-0'); 
+            setTimeout(() => t.classList.add('translate-y-20','opacity-0'), 2500); 
+        }
+
+        function openModal(id) { 
+            document.getElementById('modal-backdrop').classList.remove('hidden', 'opacity-0'); 
+            const m = document.getElementById(id);
+            if(m) m.classList.remove('hidden', 'scale-95'); 
+        }
+        
         function closeModal() { 
             document.getElementById('modal-backdrop').classList.add('opacity-0', 'hidden'); 
             const modals = ['gas-modal', 'add-task-modal', 'add-member-modal', 'manual-modal'];
@@ -520,11 +355,19 @@ function doGet(e) {
                 if(el) el.classList.add('hidden', 'scale-95');
             });
         }
-        function openGasModal() { document.getElementById('gas-url-input').value = appState.gasUrl; openModal('gas-modal'); }
-        function handleSaveGasUrl(e) { e.preventDefault(); appState.gasUrl = document.getElementById('gas-url-input').value; saveToStorage(); closeModal(); fetchFromSpreadsheet(); }
-        function unlockTeacher() { if(document.getElementById('teacher-pin-input').value === TEACHER_PIN) { appState.teacherUnlocked = true; document.getElementById('teacher-auth').classList.add('hidden'); document.getElementById('teacher-dashboard').classList.remove('hidden'); render(); } }
 
-        // --- 追加された操作関数群 ---
+        // Teacher Actions
+        function unlockTeacher() { 
+            if(document.getElementById('teacher-pin-input').value === TEACHER_PIN) { 
+                appState.teacherUnlocked = true; 
+                document.getElementById('teacher-auth').classList.add('hidden'); 
+                document.getElementById('teacher-dashboard').classList.remove('hidden'); 
+                render(); 
+            } else {
+                document.getElementById('teacher-auth-error').classList.remove('hidden');
+            }
+        }
+
         function saveMembers() {
             const input = document.getElementById('member-names-input').value;
             const names = input.split('\n').map(n => n.trim()).filter(n => n);
@@ -548,6 +391,18 @@ function doGet(e) {
                 render();
                 if (appState.gasUrl) syncToSpreadsheet(true);
             }
+        }
+
+        function renderMembers() {
+            const list = document.getElementById('member-list');
+            if(!list) return;
+            document.getElementById('member-count').innerText = `${appState.members.length}人`;
+            list.innerHTML = appState.members.map((m, i) => `
+                <div class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                    <span class="text-sm font-medium text-slate-700">${i+1}. ${m.name}</span>
+                    <button onclick="deleteMember('${m.id}')" class="text-slate-400 hover:text-red-500 p-1 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+                </div>
+            `).join('');
         }
 
         function saveTask() {
@@ -598,6 +453,420 @@ function doGet(e) {
                 render();
                 if (appState.gasUrl) syncToSpreadsheet(true);
             }
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            if(!list) return;
+            list.innerHTML = appState.tasks.map(t => `
+                <div class="flex justify-between items-center bg-slate-50 p-2 rounded border border-slate-100">
+                    <div>
+                        <div class="text-sm font-bold text-slate-700">${t.title}</div>
+                        <div class="text-[10px] mt-1">
+                            <span class="inline-block px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-600 mr-1 font-bold">${t.category || 'その他'}</span>
+                            ${t.deadline ? `<span class="text-orange-500 font-bold"><i class="fa-regular fa-calendar ml-1"></i> ${t.deadline}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editTask('${t.id}')" class="text-slate-400 hover:text-indigo-500 p-1 transition"><i class="fa-solid fa-pen text-xs"></i></button>
+                        <button onclick="deleteTask('${t.id}')" class="text-slate-400 hover:text-red-500 p-1 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Student Actions
+        function renderStudentSelect() {
+            const select = document.getElementById('student-select');
+            if(!select) return;
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">▼ 自分の名前を選んでください</option>' + 
+                appState.members.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+            select.value = currentVal;
+        }
+
+        function setStudentCategoryFilter(cat) {
+            currentStudentCategory = cat;
+            ['all', '生活ノート', '家庭学習ノート', '書類', 'その他'].forEach(c => {
+                const btn = document.getElementById('scat-' + c);
+                if(btn) {
+                    if(c === cat) {
+                        btn.classList.replace('bg-slate-50', 'bg-indigo-600');
+                        btn.classList.replace('text-slate-600', 'text-white');
+                        btn.classList.replace('border-slate-200', 'border-indigo-600');
+                    } else {
+                        btn.classList.replace('bg-indigo-600', 'bg-slate-50');
+                        btn.classList.replace('text-white', 'text-slate-600');
+                        btn.classList.replace('border-indigo-600', 'border-slate-200');
+                    }
+                }
+            });
+            renderStudentDashboard();
+        }
+
+        function renderStudentDashboard() {
+            const studentId = document.getElementById('student-select').value;
+            const dashboard = document.getElementById('student-dashboard');
+            if(!dashboard) return;
+            if(!studentId) {
+                dashboard.classList.add('hidden');
+                return;
+            }
+            dashboard.classList.remove('hidden');
+
+            const period = document.getElementById('student-period-select').value;
+            const list = document.getElementById('student-task-list');
+            
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            let filteredTasks = appState.tasks;
+            if(currentStudentCategory !== 'all') {
+                filteredTasks = filteredTasks.filter(t => (t.category || 'その他') === currentStudentCategory);
+            }
+            
+            filteredTasks = filteredTasks.filter(t => {
+                if(period === 'all') return true;
+                if(!t.deadline) return false;
+                const dDate = new Date(t.deadline);
+                dDate.setHours(0,0,0,0);
+                if(period === 'today') return dDate.getTime() === today.getTime();
+                if(period === 'this-week') {
+                    const diff = (dDate - today) / (1000 * 60 * 60 * 24);
+                    return diff >= 0 && diff <= 7;
+                }
+                if(period === 'this-month') return dDate.getMonth() === today.getMonth() && dDate.getFullYear() === today.getFullYear();
+                if(period === 'overdue') {
+                    const status = appState.submissions[`${t.id}_${studentId}`] || '未';
+                    return dDate < today && status !== '済' && status !== '休';
+                }
+                return true;
+            });
+
+            list.innerHTML = filteredTasks.map(t => {
+                const status = appState.submissions[`${t.id}_${studentId}`] || '未';
+                const isCompleted = status === '済';
+                const isAbsent = status === '休';
+                const catStyle = CATEGORIES[t.category || 'その他'] || CATEGORIES['その他'];
+                
+                let deadlineLabel = '';
+                let overdueStyle = '';
+                let statusBadge = '';
+                
+                if(t.deadline) {
+                    const dDate = new Date(t.deadline);
+                    dDate.setHours(0,0,0,0);
+                    deadlineLabel = `<div class="text-[10px] mt-1 font-bold text-slate-500"><i class="fa-regular fa-calendar"></i> 締切: ${t.deadline}</div>`;
+                    
+                    if(dDate < today && !isCompleted && !isAbsent) {
+                        if(t.category === '生活ノート' || t.category === '家庭学習ノート') {
+                            overdueStyle = 'opacity-50 grayscale';
+                            statusBadge = `<span class="px-2 py-1 rounded bg-slate-200 text-slate-600 text-[10px] font-bold">未達成</span>`;
+                        } else {
+                            overdueStyle = 'border-l-4 border-l-rose-500 bg-rose-50';
+                            statusBadge = `<span class="px-2 py-1 rounded bg-rose-100 text-rose-700 text-[10px] font-bold border border-rose-200 animate-pulse">至急提出！</span>`;
+                        }
+                    }
+                }
+                
+                if(!statusBadge) {
+                    if(isCompleted) statusBadge = `<span class="px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-200"><i class="fa-solid fa-check mr-1"></i>提出済</span>`;
+                    else if(isAbsent) statusBadge = `<span class="px-2 py-1 rounded bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200"><i class="fa-solid fa-bed mr-1"></i>休み</span>`;
+                    else statusBadge = `<span class="px-2 py-1 rounded bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">未提出</span>`;
+                }
+
+                return `
+                    <li class="p-4 flex items-center justify-between hover:bg-slate-50 transition ${overdueStyle}">
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center border ${catStyle.color}">
+                                <i class="fa-solid ${catStyle.icon}"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm text-slate-800">${t.title}</div>
+                                ${deadlineLabel}
+                            </div>
+                        </div>
+                        <div>${statusBadge}</div>
+                    </li>
+                `;
+            }).join('');
+            
+            if(filteredTasks.length === 0) {
+                list.innerHTML = `<li class="p-8 text-center text-slate-500 text-sm font-medium">該当する課題はありません</li>`;
+            }
+        }
+
+        // Checker Actions
+        function toggleSubmission(taskId, memberId) {
+            const key = `${taskId}_${memberId}`;
+            const currentStatus = appState.submissions[key] || '未';
+
+            if (currentStatus === '未') appState.submissions[key] = '済';
+            else if (currentStatus === '済') appState.submissions[key] = '休';
+            else appState.submissions[key] = '未';
+
+            saveToStorage();
+            render();
+            if (appState.gasUrl) syncToSpreadsheet(true);
+        }
+
+        function renderMatrixTable() {
+            const thead = document.getElementById('table-header');
+            const tbody = document.getElementById('table-body');
+            if(!thead || !tbody) return;
+
+            const searchQuery = (document.getElementById('search-input').value || '').toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value;
+
+            if (appState.tasks.length === 0) {
+                thead.innerHTML = '<th class="p-4 text-center text-slate-400">課題がありません。教員用ページから追加してください。</th>';
+                tbody.innerHTML = '';
+                return;
+            }
+
+            let headerHTML = `<th class="p-3 sticky left-0 z-20 bg-slate-100 min-w-[150px] shadow-[1px_0_0_0_#e2e8f0]">氏名</th>`;
+            appState.tasks.forEach(t => {
+                headerHTML += `
+                    <th class="p-3 min-w-[120px] text-center border-l border-slate-200">
+                        <div class="font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis">${t.title}</div>
+                        <div class="text-[10px] text-slate-400 mt-1 font-normal">${t.category || ''}</div>
+                        ${t.deadline ? `<div class="text-[10px] text-orange-500 font-bold mt-0.5">${t.deadline}</div>` : ''}
+                    </th>
+                `;
+            });
+            thead.innerHTML = headerHTML;
+
+            const membersToRender = appState.members.filter(m => {
+                if(searchQuery && !m.name.toLowerCase().includes(searchQuery)) return false;
+                
+                if(statusFilter !== 'all') {
+                    const allTasksStatus = appState.tasks.map(t => appState.submissions[`${t.id}_${m.id}`] || '未');
+                    const hasIncomplete = allTasksStatus.includes('未');
+                    if(statusFilter === 'incomplete' && !hasIncomplete) return false;
+                    if(statusFilter === 'complete' && hasIncomplete) return false;
+                }
+                return true;
+            });
+
+            if (membersToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${appState.tasks.length + 1}" class="p-8 text-center text-slate-500">該当する生徒が見つかりません</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = membersToRender.map((m, i) => {
+                let rowHTML = `<td class="p-3 sticky left-0 z-20 bg-white font-bold text-slate-700 shadow-[1px_0_0_0_#e2e8f0] border-b border-slate-100 flex items-center gap-2"><span class="text-xs text-slate-400 font-normal w-4 text-right">${i+1}.</span> ${m.name}</td>`;
+                
+                appState.tasks.forEach(t => {
+                    const st = appState.submissions[`${t.id}_${m.id}`] || '未';
+                    let btnClass = 'bg-slate-100 text-slate-400 border-slate-200';
+                    let icon = 'fa-minus';
+                    
+                    if(st === '済') {
+                        btnClass = 'bg-emerald-100 text-emerald-600 border-emerald-300';
+                        icon = 'fa-check';
+                    } else if (st === '休') {
+                        btnClass = 'bg-blue-100 text-blue-600 border-blue-300';
+                        icon = 'fa-bed';
+                    }
+
+                    rowHTML += `
+                        <td class="p-2 border-l border-slate-100 text-center">
+                            <button onclick="toggleSubmission('${t.id}', '${m.id}')" class="w-10 h-10 rounded-full border shadow-sm flex items-center justify-center mx-auto transition-transform active:scale-90 ${btnClass}">
+                                <i class="fa-solid ${icon}"></i>
+                            </button>
+                            <div class="text-[10px] mt-1 font-bold ${st === '済' ? 'text-emerald-600' : st === '休' ? 'text-blue-600' : 'text-slate-400'}">${st}</div>
+                        </td>
+                    `;
+                });
+                return `<tr class="hover:bg-slate-50">${rowHTML}</tr>`;
+            }).join('');
+        }
+
+        // GAS Sync Actions
+        async function fetchFromSpreadsheet() {
+            if (!appState.gasUrl) return;
+            const icon = document.getElementById('sync-icon');
+            if (icon) icon.classList.add('sync-spin');
+            
+            try {
+                const response = await fetch(appState.gasUrl);
+                const result = await response.json();
+                
+                if (result.status === 'success' && result.data) {
+                    appState.tasks = result.data.tasks || [];
+                    appState.members = result.data.members || [];
+                    appState.submissions = result.data.submissions || {};
+                    saveToStorage();
+                    render();
+                    showToast('クラウドから最新データを同期しました');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('同期に失敗しました。', 'error');
+            } finally {
+                if (icon) icon.classList.remove('sync-spin');
+            }
+        }
+
+        async function syncToSpreadsheet(silent = false) {
+            if (!appState.gasUrl) return;
+            const categories = ['生活ノート', '家庭学習ノート', '書類', 'その他'];
+            const payload = { sheets: {} };
+
+            categories.forEach(cat => {
+                const catTasks = appState.tasks.filter(t => (t.category || 'その他') === cat);
+                const taskTitles = catTasks.map(t => t.title);
+                const headers = ["名前", ...taskTitles];
+                
+                const rows = appState.members.map(m => {
+                    const row = [m.name];
+                    catTasks.forEach(t => {
+                        const st = appState.submissions[`${t.id}_${m.id}`] || '未';
+                        row.push(st);
+                    });
+                    return row;
+                });
+                payload.sheets[cat] = { headers, rows };
+            });
+
+            try {
+                await fetch(appState.gasUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+                if (!silent) showToast('スプレッドシートにデータを送信しました');
+            } catch (err) {
+                if (!silent) showToast('送信に失敗しました', 'error');
+            }
+        }
+
+        function openGasModal() { 
+            document.getElementById('gas-url-input').value = appState.gasUrl; 
+            openModal('gas-modal'); 
+        }
+
+        function handleSaveGasUrl(e) { 
+            e.preventDefault(); 
+            appState.gasUrl = document.getElementById('gas-url-input').value.trim(); 
+            saveToStorage(); 
+            closeModal(); 
+            fetchFromSpreadsheet(); 
+        }
+
+        function copyGasScript() {
+            const scriptCode = `// 【送信（書き込み）処理】
+function doPost(e) {
+  try {
+    var contents = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetsData = contents.sheets;
+    
+    for (var sheetName in sheetsData) {
+      var data = sheetsData[sheetName];
+      var headers = data.headers || [];
+      var rows = data.rows || [];
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet) sheet = ss.insertSheet(sheetName);
+      sheet.clear();
+      
+      if (headers.length === 0 && rows.length === 0) continue;
+      
+      var outData = [];
+      if (headers.length > 0) outData.push(headers);
+      rows.forEach(function(r) { outData.push(r); });
+      
+      if (outData.length > 0) {
+        var maxCols = Math.max.apply(null, outData.map(function(r){ return r.length; }));
+        outData = outData.map(function(r) { while(r.length < maxCols) r.push(""); return r; });
+        sheet.getRange(1, 1, outData.length, maxCols).setValues(outData);
+      }
+      if (headers.length > 0) {
+        sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0e7ff").setHorizontalAlignment("center");
+      }
+      if (rows.length > 0 && headers.length > 1) {
+        var dataRange = sheet.getRange(2, 2, rows.length, headers.length - 1);
+        dataRange.setHorizontalAlignment("center");
+        var currentValues = dataRange.getValues();
+        var newColors = currentValues.map(function(row) {
+          return row.map(function(cell) {
+            if (cell === '未') return 'red';
+            if (cell === '休') return 'blue';
+            return 'black';
+          });
+        });
+        dataRange.setFontColors(newColors);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({status: "error"})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// 【受信（読み込み）処理】
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheets = ss.getSheets();
+    var data = { tasks: [], members: [], submissions: {} };
+    var memberMap = {}; 
+    var memberCounter = 1;
+    var taskCounter = 1;
+
+    sheets.forEach(function(sheet) {
+      var sheetName = sheet.getName();
+      var values = sheet.getDataRange().getValues();
+      if (values.length < 1) return;
+
+      var headers = values[0];
+      var currentTasks = [];
+      
+      for (var i = 1; i < headers.length; i++) {
+        var taskTitle = headers[i];
+        if (!taskTitle) continue;
+        var taskId = 'cloud-task-' + taskCounter++;
+        var taskObj = { id: taskId, title: taskTitle, category: sheetName };
+        data.tasks.push(taskObj);
+        currentTasks.push(taskObj);
+      }
+
+      for (var r = 1; r < values.length; r++) {
+        var row = values[r];
+        var memberName = row[0];
+        if (!memberName) continue;
+
+        if (!memberMap[memberName]) {
+          memberMap[memberName] = 'cloud-mem-' + memberCounter++;
+          data.members.push({ id: memberMap[memberName], name: memberName });
+        }
+        var mId = memberMap[memberName];
+
+        for (var c = 1; c < headers.length; c++) {
+          if (c - 1 < currentTasks.length) {
+            var status = row[c] || '未';
+            var tId = currentTasks[c - 1].id;
+            if (status === '済' || status === '休' || status === '未') {
+              data.submissions[tId + '_' + mId] = status;
+            }
+          }
+        }
+      }
+    });
+
+    return ContentService.createTextOutput(JSON.stringify({status: "success", data: data})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+            const textarea = document.createElement('textarea');
+            textarea.value = scriptCode;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('新しいGAS用スクリプトをコピーしました！');
         }
     </script>
 </body>
