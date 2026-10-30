@@ -54,8 +54,6 @@
 
     <!-- Main Content -->
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative">
-        <!-- 画面のHTML構造は変更していません（長文省略のため主要部分のみ表示） -->
-        
         <!-- View: Student (生徒用) -->
         <section id="view-student" class="hidden max-w-3xl mx-auto space-y-6 animate-fade-in">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 sm:p-8 text-center">
@@ -153,9 +151,6 @@
                 </section>
                 <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
                     <h2 class="font-bold text-slate-800 flex items-center gap-2 mb-4 border-b border-slate-100 pb-2"><i class="fa-solid fa-toolbox text-slate-500"></i> 管理メニュー</h2>
-                    <button onclick="openModal('manual-modal')" class="w-full text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 mb-2">
-                        <i class="fa-solid fa-circle-question"></i> 🔰 スプレッドシート連携のやり方
-                    </button>
                     <button onclick="openGasModal()" class="w-full text-sm bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
                         <i class="fa-solid fa-gear"></i> スプレッドシート連携設定
                     </button>
@@ -208,54 +203,29 @@
             </div>
         </div>
 
-        <!-- Manual Modal -->
-        <div id="manual-modal" class="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 hidden transform scale-95 transition-transform duration-200 max-h-[80vh] overflow-y-auto custom-scrollbar">
-            <h3 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
-                <i class="fa-solid fa-circle-question text-blue-500"></i> スプレッドシート連携のやり方
-            </h3>
-            <div class="space-y-4 text-sm text-slate-700">
-                <p>このアプリはGoogleスプレッドシートと連携して、全員の端末で提出状況を共有することができます。</p>
-                <ol class="list-decimal pl-5 space-y-3 font-medium">
-                    <li>Googleドライブを開き、新しい「Google スプレッドシート」を作成します。</li>
-                    <li>上部のメニューから <b>「拡張機能」 ＞ 「Apps Script」</b> をクリックします。</li>
-                    <li>「無題のプロジェクト」が開くので、最初から入力されているコードをすべて消去します。</li>
-                    <li>このアプリの「スプレッドシート連携設定」画面にある <b>「GAS用スクリプトをコピー」</b> ボタンを押し、コピーした内容を貼り付けます。</li>
-                    <li>上部の <b>保存ボタン（💾）</b> をクリックします。</li>
-                    <li>右上の青いボタン <b>「デプロイ」 ＞ 「新しいデプロイ」</b> をクリックします。</li>
-                    <li>種類の選択（歯車）から <b>「ウェブアプリ」</b> を選びます。</li>
-                    <li>アクセスできるユーザーを <b>「全員」</b> に変更し、「デプロイ」をクリックします。</li>
-                    <li>（※初回のみ「アクセスを承認」画面が出ます。アカウントを選択し、「Advanced(詳細)」＞「（安全ではないページ）に移動」＞「許可」と進みます）</li>
-                    <li>発行された <b>「ウェブアプリ URL」</b> をコピーし、アプリの「スプレッドシート連携設定」に貼り付けて保存します。</li>
-                </ol>
-            </div>
-            <div class="flex justify-end pt-4 mt-4 border-t border-slate-100">
-                <button type="button" onclick="closeModal()" class="px-5 py-2 text-sm bg-slate-800 hover:bg-slate-700 text-white rounded-lg">閉じる</button>
-            </div>
-        </div>
-
         <!-- GAS Setup Modal -->
         <div id="gas-modal" class="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-lg p-6 hidden transform scale-95 transition-transform duration-200">
             <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <i class="fa-solid fa-cloud text-indigo-600"></i> クラウド同期（GAS）設定
             </h3>
-            <p class="text-xs text-slate-500 mb-4">このURLを設定すると、全員でデータを共有できるようになります。</p>
+            <p class="text-xs text-slate-500 mb-4">GAS（Google Apps Script）のWebアプリURLを設定します。</p>
 
             <form onsubmit="handleSaveGasUrl(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 mb-1">Google Apps Script (GAS) Web アプリ URL</label>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Web アプリ URL</label>
                     <input type="url" id="gas-url-input" placeholder="https://script.google.com/macros/s/.../exec" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
                 </div>
                 <div class="flex gap-2 pt-2">
                     <button type="submit" class="flex-1 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg">設定を保存</button>
                     <button type="button" onclick="syncToSpreadsheet()" class="flex-1 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-lg border border-slate-300 flex items-center justify-center gap-1">
-                        <i class="fa-solid fa-cloud-arrow-up"></i> スプレッドシートへ強制送信
+                        <i class="fa-solid fa-cloud-arrow-up"></i> 強制送信
                     </button>
                 </div>
             </form>
 
             <div class="mt-5 border-t border-slate-200 pt-4">
                 <button type="button" onclick="copyGasScript()" class="w-full text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-1.5 rounded border border-slate-300 flex items-center justify-center gap-1">
-                    <i class="fa-solid fa-code"></i> GAS用スクリプトをコピー（要アップデート！）
+                    <i class="fa-solid fa-code"></i> 修正版GASスクリプトをコピー
                 </button>
             </div>
             <div class="flex justify-end pt-3">
@@ -272,6 +242,10 @@
     </div>
 
     <script>
+        // 【重要】GASからテンプレートとしてURLが注入される仕組み（生徒の初期設定をゼロにする魔法）
+        let injectedGasUrl = "<?= typeof scriptUrl !== 'undefined' ? scriptUrl : '' ?>";
+        if (injectedGasUrl.includes("<?")) injectedGasUrl = ""; // Netlify等で開いた場合は無効化
+
         const TEACHER_PIN = "t222701Matsumoto";
         const CATEGORIES = {
             '生活ノート': { color: 'bg-green-100 text-green-700 border-green-200', icon: 'fa-book-open' },
@@ -282,12 +256,19 @@
 
         let currentStudentCategory = 'all';
         let appState = {
-            tasks: [], members: [], submissions: {}, gasUrl: '', sheetUrl: '', currentView: 'checker', teacherUnlocked: false
+            tasks: [], members: [], submissions: {}, gasUrl: '', currentView: 'checker', teacherUnlocked: false
         };
         const STORAGE_KEY = 'work_submission_tracker_data_v1';
 
         window.addEventListener('DOMContentLoaded', () => {
             loadFromStorage();
+            
+            // GAS環境で開かれた場合、URLを自動登録する
+            if (injectedGasUrl && appState.gasUrl !== injectedGasUrl) {
+                appState.gasUrl = injectedGasUrl;
+                saveToStorage();
+            }
+
             if(appState.gasUrl) {
                 fetchFromSpreadsheet();
             }
@@ -321,7 +302,6 @@
                 activeTab.classList.add('text-indigo-600', 'border-indigo-500', 'bg-indigo-50/50');
                 activeTab.classList.remove('text-slate-500', 'border-transparent');
             }
-
             render();
         }
 
@@ -349,7 +329,7 @@
         
         function closeModal() { 
             document.getElementById('modal-backdrop').classList.add('opacity-0', 'hidden'); 
-            const modals = ['gas-modal', 'add-task-modal', 'add-member-modal', 'manual-modal'];
+            const modals = ['gas-modal', 'add-task-modal', 'add-member-modal'];
             modals.forEach(id => {
                 const el = document.getElementById(id);
                 if(el) el.classList.add('hidden', 'scale-95');
@@ -638,7 +618,6 @@
 
             const membersToRender = appState.members.filter(m => {
                 if(searchQuery && !m.name.toLowerCase().includes(searchQuery)) return false;
-                
                 if(statusFilter !== 'all') {
                     const allTasksStatus = appState.tasks.map(t => appState.submissions[`${t.id}_${m.id}`] || '未');
                     const hasIncomplete = allTasksStatus.includes('未');
@@ -689,7 +668,9 @@
             if (icon) icon.classList.add('sync-spin');
             
             try {
-                const response = await fetch(appState.gasUrl);
+                // 【修正箇所】URLの末尾に ?api=true を付与して、「画面表示」ではなく「データ受信」であることをGASに伝える
+                const fetchUrl = appState.gasUrl + (appState.gasUrl.includes('?') ? '&api=true' : '?api=true');
+                const response = await fetch(fetchUrl);
                 const result = await response.json();
                 
                 if (result.status === 'success' && result.data) {
@@ -698,11 +679,11 @@
                     appState.submissions = result.data.submissions || {};
                     saveToStorage();
                     render();
-                    showToast('クラウドから最新データを同期しました');
+                    showToast('最新データを同期しました');
                 }
             } catch (err) {
                 console.error(err);
-                showToast('同期に失敗しました。', 'error');
+                showToast('同期に失敗しました', 'error');
             } finally {
                 if (icon) icon.classList.remove('sync-spin');
             }
@@ -736,7 +717,7 @@
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify(payload)
                 });
-                if (!silent) showToast('スプレッドシートにデータを送信しました');
+                if (!silent) showToast('スプレッドシートに送信しました');
             } catch (err) {
                 if (!silent) showToast('送信に失敗しました', 'error');
             }
@@ -756,57 +737,23 @@
         }
 
         function copyGasScript() {
-            const scriptCode = `// 【送信（書き込み）処理】
-function doPost(e) {
-  try {
-    var contents = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetsData = contents.sheets;
-    
-    for (var sheetName in sheetsData) {
-      var data = sheetsData[sheetName];
-      var headers = data.headers || [];
-      var rows = data.rows || [];
-      var sheet = ss.getSheetByName(sheetName);
-      if (!sheet) sheet = ss.insertSheet(sheetName);
-      sheet.clear();
-      
-      if (headers.length === 0 && rows.length === 0) continue;
-      
-      var outData = [];
-      if (headers.length > 0) outData.push(headers);
-      rows.forEach(function(r) { outData.push(r); });
-      
-      if (outData.length > 0) {
-        var maxCols = Math.max.apply(null, outData.map(function(r){ return r.length; }));
-        outData = outData.map(function(r) { while(r.length < maxCols) r.push(""); return r; });
-        sheet.getRange(1, 1, outData.length, maxCols).setValues(outData);
-      }
-      if (headers.length > 0) {
-        sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0e7ff").setHorizontalAlignment("center");
-      }
-      if (rows.length > 0 && headers.length > 1) {
-        var dataRange = sheet.getRange(2, 2, rows.length, headers.length - 1);
-        dataRange.setHorizontalAlignment("center");
-        var currentValues = dataRange.getValues();
-        var newColors = currentValues.map(function(row) {
-          return row.map(function(cell) {
-            if (cell === '未') return 'red';
-            if (cell === '休') return 'blue';
-            return 'black';
-          });
-        });
-        dataRange.setFontColors(newColors);
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error"})).setMimeType(ContentService.MimeType.JSON);
+            const scriptCode = `// 【画面表示 ＆ データ受信 統合コード】
+function doGet(e) {
+  // ① アプリからの「同期」ボタンによる通信の場合はデータを返す
+  if (e.parameter && e.parameter.api === 'true') {
+    return getSyncData();
   }
+  
+  // ② 生徒がブラウザで開いた場合はアプリの画面(HTML)を表示する
+  var template = HtmlService.createTemplateFromFile('index');
+  template.scriptUrl = ScriptApp.getService().getUrl();
+  return template.evaluate()
+    .setTitle('提出物チェッくん')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-// 【受信（読み込み）処理】
-function doGet(e) {
+// 【データ受信（読み込み）の本体】
+function getSyncData() {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheets = ss.getSheets();
@@ -858,6 +805,55 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({status: "success", data: data})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// 【データ送信（書き込み）】
+function doPost(e) {
+  try {
+    var contents = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetsData = contents.sheets;
+    
+    for (var sheetName in sheetsData) {
+      var data = sheetsData[sheetName];
+      var headers = data.headers || [];
+      var rows = data.rows || [];
+      var sheet = ss.getSheetByName(sheetName);
+      if (!sheet) sheet = ss.insertSheet(sheetName);
+      sheet.clear();
+      
+      if (headers.length === 0 && rows.length === 0) continue;
+      
+      var outData = [];
+      if (headers.length > 0) outData.push(headers);
+      rows.forEach(function(r) { outData.push(r); });
+      
+      if (outData.length > 0) {
+        var maxCols = Math.max.apply(null, outData.map(function(r){ return r.length; }));
+        outData = outData.map(function(r) { while(r.length < maxCols) r.push(""); return r; });
+        sheet.getRange(1, 1, outData.length, maxCols).setValues(outData);
+      }
+      if (headers.length > 0) {
+        sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0e7ff").setHorizontalAlignment("center");
+      }
+      if (rows.length > 0 && headers.length > 1) {
+        var dataRange = sheet.getRange(2, 2, rows.length, headers.length - 1);
+        dataRange.setHorizontalAlignment("center");
+        var currentValues = dataRange.getValues();
+        var newColors = currentValues.map(function(row) {
+          return row.map(function(cell) {
+            if (cell === '未') return 'red';
+            if (cell === '休') return 'blue';
+            return 'black';
+          });
+        });
+        dataRange.setFontColors(newColors);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({status: "error"})).setMimeType(ContentService.MimeType.JSON);
   }
 }`;
             const textarea = document.createElement('textarea');
